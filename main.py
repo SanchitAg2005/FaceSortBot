@@ -4,48 +4,50 @@ from flask import Flask, request
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler
 
+# Import handlers
 from handlers.start_handler import start
-from utils.db import users
 
-TOKEN = os.environ.get("BOT_TOKEN")
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
+# Load tokens
+TOKEN = os.environ["BOT_TOKEN"]
+WEBHOOK_URL = os.environ["WEBHOOK_URL"]
 
-if not TOKEN:
-    print("❌ ERROR: BOT_TOKEN missing")
-    raise SystemExit(1)
-
-if not WEBHOOK_URL:
-    print("❌ ERROR: WEBHOOK_URL missing")
-    raise SystemExit(1)
-
-print("🚀 Starting FaceSort Telegram Bot...")
-
-# Build bot
-bot_app = ApplicationBuilder().token(TOKEN).build()
-bot_app.add_handler(CommandHandler("start", start))
-
-# REQUIRED to enable webhook processing
-asyncio.run(bot_app.initialize())
-
+# Flask app
 app = Flask(__name__)
+
+# Telegram async application
+t_app = ApplicationBuilder().token(TOKEN).build()
+t_app.add_handler(CommandHandler("start", start))
+
 
 @app.post("/")
 def webhook():
-    try:
-        data = request.get_json(force=True)
-        update = Update.de_json(data, bot_app.bot)
-        asyncio.run(bot_app.process_update(update))
-    except Exception as e:
-        print("⚠️ Webhook error:", e)
+    """Receives Telegram updates and schedules async processing."""
+    data = request.get_json(silent=True)
+    if not data:
+        return "no_data", 200
+
+    update = Update.de_json(data, t_app.bot)
+    asyncio.get_event_loop().create_task(t_app.process_update(update))
     return "ok", 200
 
 
-if __name__ == "__main__":
+async def setup_webhook():
+    """Set webhook only once when container starts."""
     try:
-        print("🌍 Setting Telegram webhook:", WEBHOOK_URL)
-        asyncio.run(bot_app.bot.set_webhook(url=WEBHOOK_URL))
+        await t_app.bot.set_webhook(WEBHOOK_URL)
+        print(f"🌍 Webhook set → {WEBHOOK_URL}")
     except Exception as e:
-        print("⚠️ Webhook set error:", e)
+        print("⚠️ Webhook error:", e)
 
-    print("🔥 Flask server running 0.0.0.0:8080")
+
+def start_bot():
+    """Start telegram bot async tasks in background."""
+    loop = asyncio.get_event_loop()
+    loop.create_task(setup_webhook())
+
+
+if __name__ == "__main__":
+    print("🚀 Starting FaceSort Telegram Bot...")
+    start_bot()
+    print("🔥 Flask server running at 0.0.0.0:8080")
     app.run(host="0.0.0.0", port=8080)
