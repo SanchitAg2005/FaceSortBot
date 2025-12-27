@@ -2,32 +2,31 @@ import os
 from flask import Flask, request
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler
+
 from handlers.start_handler import start
 
 TOKEN = os.environ["BOT_TOKEN"]
 WEBHOOK_URL = os.environ["WEBHOOK_URL"]
 
 app = Flask(__name__)
-bot_app = None  # <-- create lazy global
 
-
-def get_bot():
-    global bot_app
-    if bot_app is None:
-        bot_app = ApplicationBuilder().token(TOKEN).build()
-        bot_app.add_handler(CommandHandler("start", start))
-        bot_app.bot.set_webhook(url=WEBHOOK_URL)
-    return bot_app
-
+# Build bot app
+bot_app = ApplicationBuilder().token(TOKEN).build()
+bot_app.add_handler(CommandHandler("start", start))
 
 @app.post("/")
 def webhook():
-    application = get_bot()
-    update = Update.de_json(request.get_json(), application.bot)
-    application.process_update(update)
+    update = Update.de_json(request.get_json(force=True), bot_app.bot)
+    bot_app.update_queue.put_nowait(update)
     return "ok", 200
 
-
 if __name__ == "__main__":
-    get_bot()
-    app.run(host="0.0.0.0", port=8080)
+    # 🚀 start webhook + start dispatcher worker
+    import asyncio
+    async def run():
+        await bot_app.initialize()
+        await bot_app.start()
+        await bot_app.bot.set_webhook(WEBHOOK_URL)
+        await asyncio.Event().wait()
+
+    asyncio.run(run())
