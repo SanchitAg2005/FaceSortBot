@@ -5,7 +5,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler
 
 from handlers.start_handler import start
 
-TOKEN = os.environ["BOT_TOKEN"]
+TOKEN = os.environ["8444834631:AAH-bWmlVuKMdmh8phB5E12ScbMYYK5XTpQ"]
 WEBHOOK_URL = os.environ["WEBHOOK_URL"]
 
 app = Flask(__name__)
