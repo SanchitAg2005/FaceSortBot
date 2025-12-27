@@ -1,51 +1,43 @@
 import os
-import asyncio
-from flask import Flask, request
+from aiohttp import web
 from telegram import Update
 from telegram.ext import Application, CommandHandler
 
-from handlers.start_handler import start  # <-- your handler
+from handlers.start_handler import start
 
 TOKEN = os.environ["BOT_TOKEN"]
 WEBHOOK_URL = os.environ["WEBHOOK_URL"]
 
-app = Flask(__name__)
-
-# Create single global Application instance
-t_app = Application.builder().token(TOKEN).build()
-t_app.add_handler(CommandHandler("start", start))
-
-
-# Background runner to keep bot alive
-async def run_bot():
-    print("🚀 Telegram Bot Async Loop started...")
-    await t_app.initialize()
-    await t_app.start()
-    print("🌍 Setting webhook...")
-    await t_app.bot.set_webhook(WEBHOOK_URL)
-    await t_app.updater.start_webhook()
-    await asyncio.Event().wait()  # keep running forever without exiting
-
-
-@app.post("/")
-def webhook():
+async def handle(request):
     try:
-        data = request.get_json(force=True)
-        update = Update.de_json(data, t_app.bot)
-        # Dispatch update asynchronously
-        asyncio.create_task(t_app.process_update(update))
+        data = await request.json()
+        update = Update.de_json(data, bot_app.bot)
+        await bot_app.process_update(update)
     except Exception as e:
-        print("⚠️ Error in webhook:", e)
+        print("⚠️ Error handling update:", e)
+    return web.Response(text="ok")
 
-    return "ok", 200
+async def on_startup(app):
+    print("🚀 FaceSort Bot initialized")
+    await bot_app.initialize()
+    await bot_app.start()
+    print("🌍 Setting webhook at:", WEBHOOK_URL)
+    await bot_app.bot.set_webhook(WEBHOOK_URL)
 
+async def on_shutdown(app):
+    await bot_app.stop()
+    await bot_app.shutdown()
+
+# Telegram Bot Application
+bot_app = Application.builder().token(TOKEN).build()
+bot_app.add_handler(CommandHandler("start", start))
+
+# aiohttp Web Server
+app = web.Application()
+app.router.add_post("/", handle)
+app.on_startup.append(on_startup)
+app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
-    print("🚀 Boot: FaceSort Telegram Bot initializing")
-
-    # Create event loop only ONCE
-    loop = asyncio.get_event_loop()
-    loop.create_task(run_bot())
-
-    print("🔥 Flask is now accepting Telegram webhook updates...")
-    app.run(host="0.0.0.0", port=8080)
+    print("🔥 Running FaceSort Bot HTTP Server...")
+    web.run_app(app, host="0.0.0.0", port=8080)
