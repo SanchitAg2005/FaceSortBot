@@ -22,7 +22,8 @@ print("🚀 Starting bot...")
 app = Flask(__name__)
 bot_app = ApplicationBuilder().token(TOKEN).build()
 
-bot_app.add_handler(CommandHandler("start", start))
+import asyncio
+asyncio.run(bot_app.process_update(update))
 
 @app.post("/")
 def webhook():
