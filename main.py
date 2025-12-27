@@ -4,29 +4,40 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler
 
 from handlers.start_handler import start
+from utils.db import users
 
-TOKEN = os.environ["BOT_TOKEN"]
-WEBHOOK_URL = os.environ["WEBHOOK_URL"]
+TOKEN = os.environ.get("BOT_TOKEN")
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
+
+if not TOKEN:
+    print("❌ BOT_TOKEN missing!")
+    raise SystemExit(1)
+
+if not WEBHOOK_URL:
+    print("❌ WEBHOOK_URL missing!")
+    raise SystemExit(1)
+
+print("🚀 Starting bot...")
 
 app = Flask(__name__)
-
-# Build bot app
 bot_app = ApplicationBuilder().token(TOKEN).build()
+
 bot_app.add_handler(CommandHandler("start", start))
 
 @app.post("/")
 def webhook():
-    update = Update.de_json(request.get_json(force=True), bot_app.bot)
-    bot_app.update_queue.put_nowait(update)
-    return "ok", 200
+    try:
+        update = Update.de_json(request.get_json(force=True), bot_app.bot)
+        bot_app.process_update(update)
+    except Exception as e:
+        print("⚠️ webhook error:", e)
+    return "ok"
 
+# Railway needs THIS to keep container alive
 if __name__ == "__main__":
-    # 🚀 start webhook + start dispatcher worker
+    print("🌍 Setting webhook:", WEBHOOK_URL)
     import asyncio
-    async def run():
-        await bot_app.initialize()
-        await bot_app.start()
-        await bot_app.bot.set_webhook(WEBHOOK_URL)
-        await asyncio.Event().wait()
+    asyncio.run(bot_app.bot.set_webhook(url=WEBHOOK_URL))
 
-    asyncio.run(run())
+    print("🔥 Flask server running @ 0.0.0.0:8080")
+    app.run(host="0.0.0.0", port=8080)
