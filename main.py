@@ -7,6 +7,7 @@ from handlers.start_handler import start
 
 TOKEN = os.environ["BOT_TOKEN"]
 WEBHOOK_URL = os.environ["WEBHOOK_URL"]
+PORT = int(os.environ.get("PORT", 8080))
 
 async def handle(request):
     try:
@@ -39,5 +40,5 @@ app.on_startup.append(on_startup)
 app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
-    print("🔥 Running FaceSort Bot HTTP Server...")
-    web.run_app(app, host="0.0.0.0", port=8080)
+    print(f"🔥 Running FaceSort Bot HTTP Server on port {PORT}")
+    web.run_app(app, host="0.0.0.0", port=PORT)
